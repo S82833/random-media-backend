@@ -39,8 +39,11 @@ def get_random_image(label: str):
     
     image = random.choice(result.data)
     # 2. Actualizamos la cantidad de veces que se ha visto la imagen
-    supabase.rpc("increment_viewed_count", {"image_id": image["id"]}).execute()
-
+    supabase.table("images")\
+        .update({"viewed_count": image["viewed_count"] + 1}) \
+        .eq("id", image["id"]) \
+        .execute()
+    
     # 3. Devolvemos la URL de la imagen
     return RedirectResponse(url=image["image_url"])
 
