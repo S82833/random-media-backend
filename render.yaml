@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: backend-fastapi
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
+    envVars:
+      - key: SUPABASE_URL
+        value: https://wezlyawvnxtyxbfjozue.supabase.co
+      - key: SUPABASE_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indlemx5YXd2bnh0eXhiZmpvenVlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NjY1NTI3OSwiZXhwIjoyMDYyMjMxMjc5fQ.C2lJJEMycjbrJbYQ6-nUGF-Q6A8oMZ7BNyE27QqP3Ac
