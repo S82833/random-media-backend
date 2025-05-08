@@ -16,7 +16,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], #cambiar esto por https://admin.media.authormedia.org
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,11 +39,8 @@ def get_random_image(label: str):
     
     image = random.choice(result.data)
     # 2. Actualizamos la cantidad de veces que se ha visto la imagen
-    supabase.table("images")\
-        .update({"viewed_count": image["viewed_count"] + 1}) \
-        .eq("id", image["id"]) \
-        .execute()
-    
+    supabase.rpc("increment_viewed_count", {"image_id": image["id"]}).execute()
+
     # 3. Devolvemos la URL de la imagen
     return RedirectResponse(url=image["image_url"])
 
