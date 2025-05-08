@@ -39,11 +39,15 @@ def get_random_image(label: str):
     
     image = random.choice(result.data)
     # 2. Actualizamos la cantidad de veces que se ha visto la imagen
-    supabase.table("images")\
-        .update({"viewed_count": image["viewed_count"] + 1}) \
-        .eq("id", image["id"]) \
-        .execute()
-    
+    try:
+        supabase.table("images") \
+            .update({"viewed_count": image["viewed_count"] + 1}) \
+            .eq("id", image["id"]) \
+            .execute()
+    except Exception as e:
+        print(f"Error actualizando imagen {image['id']}: {e}")
+        raise 
+
     # 3. Devolvemos la URL de la imagen
     return RedirectResponse(url=image["image_url"])
 
