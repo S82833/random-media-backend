@@ -45,9 +45,10 @@ def get_random_image(label: str):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": "Error al actualizar viewed_count."})
 
-
+    
     # 3. Devolvemos la URL de la imagen
-    return RedirectResponse(url=image["image_url"])
+    result_url = f'{image["image_url"]}?download=1'
+    return RedirectResponse(url=result_url)
 
 @app.get("/api/images")
 def list_images(label: str = Query(None)):
