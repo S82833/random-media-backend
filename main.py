@@ -17,7 +17,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], #cambiar esto por https://admin.media.authormedia.org
+    allow_origins=["https://admin.media.authormedia.org",],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -71,7 +71,7 @@ def list_images(
         query = query.eq("label", label)
 
     if search:
-        query = query.ilike("image_url", f"%{search}%")  # <-- Búsqueda parcial
+        query = query.ilike("image_url", f"%{search}%")
 
     query = query.range(start, end)
 
@@ -143,3 +143,26 @@ def get_labels():
     if result.data:
         return result.data
     return []
+
+@app.get("/api/images_count")
+def get_images_count(
+    label: str = Query(None),
+    search: str = Query(None),
+    deleted: bool = Query(False),
+):
+    query = supabase.table("images").select("id", count="exact")
+
+    if deleted:
+        query = query.eq("is_deleted", deleted)
+
+    if label:
+        query = query.eq("label", label)
+
+    if search:
+        query = query.ilike("image_url", f"%{search}%")
+
+    try:
+        result = query.execute()
+        return {"count": result.count}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
