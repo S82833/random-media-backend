@@ -51,12 +51,35 @@ def get_random_image(label: str):
     return RedirectResponse(url=result_url)
 
 @app.get("/api/images")
-def list_images(label: str = Query(None)):
-    query = supabase.table("images").select("*").eq("is_deleted", False)
+def list_images(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10000, ge=1, le=10000),
+    label: str = Query(None),
+    search: str = Query(None),
+    deleted: bool = Query(False),
+):
+    start = (page - 1) * limit
+    end = start + limit - 1
+
+    query = supabase.table("images") \
+        .select("*") 
+    
+    if deleted:
+        query = query.eq("is_deleted", deleted)
+
     if label:
         query = query.eq("label", label)
-    result = query.execute()
-    return result.data
+
+    if search:
+        query = query.ilike("image_url", f"%{search}%")  # <-- Búsqueda parcial
+
+    query = query.range(start, end)
+
+    try:
+        result = query.execute()
+        return result.data
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/delete")
 def delete_image(payload: DeleteRequest):
@@ -85,3 +108,38 @@ def delete_image(payload: DeleteRequest):
         "status": "ok",
         "deleted_ids": borrados
     }
+
+@app.post("/api/restore")
+def restore_image(payload: DeleteRequest):
+    errores = []
+    restaurados = 0
+
+    for id in payload.ids:
+        try:
+            response = supabase.table("images").update({"is_deleted": False}).eq("id", id).execute()
+            if response.data:
+                restaurados += 1
+            else:
+                errores.append(id)
+
+        except Exception as e:
+            errores.append({"id": id, "error": str(e)})
+
+    if errores:
+        return {
+            "status": "partial_success",
+            "restored_ids": restaurados,
+            "errors": errores
+        }
+
+    return {
+        "status": "ok",
+        "restored_ids": restaurados
+    }
+
+@app.get("/api/labels")
+def get_labels():
+    result = supabase.rpc("get_unique_labels", {}).execute()
+    if result.data:
+        return result.data
+    return []
