@@ -17,7 +17,8 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://admin.media.authormedia.org",],
+    allow_origins=["https://admin.media.authormedia.org",
+                   "http://localhost:3000/"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
