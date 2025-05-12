@@ -156,8 +156,7 @@ def get_images_count(
 ):
     query = supabase.table("images").select("id", count="exact")
 
-    if deleted:
-        query = query.eq("is_deleted", deleted)
+    query = query.eq("is_deleted", deleted)
 
     if label:
         query = query.eq("label", label)
