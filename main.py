@@ -65,8 +65,7 @@ def list_images(
     query = supabase.table("images") \
         .select("*") 
     
-    if deleted:
-        query = query.eq("is_deleted", deleted)
+    query = query.eq("is_deleted", deleted)
 
     if label:
         query = query.eq("label", label)
@@ -86,17 +85,21 @@ def list_images(
 def delete_image(payload: DeleteRequest):
     errores = []
     borrados = 0
+    data = []
 
     for id in payload.ids:
-        try:
-            response = supabase.table("images").update({"is_deleted": True}).eq("id", id).execute()
-            if response.data:
-                borrados += 1
-            else:
-                errores.append(id)
-
-        except Exception as e:
-            errores.append({"id": id, "error": str(e)})
+        data.append({"id": id, "is_deleted": True})
+    
+    try:
+        response = supabase.table("images").upsert(data).execute()
+        if response.data:
+            for item in response.data:
+                if item.get("is_deleted"):
+                    borrados += 1
+                else:
+                    errores.append(item["id"])
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
     if errores:
         return {
