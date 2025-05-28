@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
@@ -26,48 +26,25 @@ app.add_middleware(
 )
 
 @app.get("/")
-def get_random_image(label: str):
+async def get_random_image(label: str):
     try:
-        # 1. Buscar el ID del label por nombre
-        label_response = supabase.table("labels").select("id").eq("name", label).execute()
-        if not label_response.data:
-            return JSONResponse(status_code=404, content={"error": f"Label '{label}' not found."})
+        resp = supabase.rpc(
+            "pick_image_url",
+            {"_label_name": label}
+        ).execute()
 
-        label_id = label_response.data[0]["id"]
+        if resp.data is None:
+            raise HTTPException(status_code=404, detail="Label or images not found")
 
-        # 2. Buscar imagen con menos usos para ese label_id
-        result = supabase.table("images") \
-            .select("*") \
-            .eq("id_label", label_id) \
-            .eq("is_deleted", False) \
-            .order("viewed_count") \
-            .order("created_at") \
-            .limit(10) \
-            .execute()
-
-        if not result.data:
-            return JSONResponse(status_code=404, content={"error": "No images found for this label."})
-
-        # 3. Seleccionar una imagen aleatoria
-        image = random.choice(result.data)
-
-        # 4. Actualizar viewed_count usando función RPC
-        try:
-            supabase.rpc("increment_viewed_count", {"image_id": image["id"]}).execute()
-        except Exception as e:
-            return JSONResponse(status_code=500, content={"error": "Error al actualizar viewed_count."})
-
-        # 5. Redirigir a la imagen
-        result_url = f'{image["image_url"]}?download=1'
-        return RedirectResponse(url=result_url)
+        return RedirectResponse(url=f"{resp.data}?download=1")
 
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/images")
 def list_images(
     page: int = Query(1, ge=1),
-    limit: int = Query(10000, ge=1, le=10000),
+    limit: int = Query(100, ge=1, le=500),
     labels: str = Query(None), # es una lista separada por comas
     keywords: str = Query(None),  # e.g. "romance,drama"
     deleted: bool = Query(False),
@@ -83,7 +60,6 @@ def list_images(
         
         if keywords:
             keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
-            keyword_set = set(keyword_list)
 
             if keywords_mode == "or":
                 # 🔹 1 sola query con paginación
@@ -96,41 +72,17 @@ def list_images(
                 return result.data
 
             elif keywords_mode == "and":
-                # 🔹 1. Hacer JOIN para traer todas las combinaciones
-                raw = supabase.table("images") \
-                    .select("id, images_keywords!inner(keywords!inner(name))") \
-                    .in_("images_keywords.keywords.name", keyword_list) \
-                    .eq("is_deleted", deleted) \
-                    .limit(100000) \
-                    .execute()
-
-                # 🔹 2. Agrupar y filtrar en Python
-                image_keyword_map = defaultdict(set)
-                for row in raw.data:
-                    image_id = row["id"]
-                    for kw in row.get("images_keywords", []):
-                        if kw.get("keywords"):
-                            image_keyword_map[image_id].add(kw["keywords"]["name"])
-
-                filtered_ids = [
-                    image_id for image_id, kws in image_keyword_map.items()
-                    if keyword_set.issubset(kws)
-                ]
-
-                if not filtered_ids:
-                    return []
-
-                # 🔹 3. Hacer query final con paginación
-                query = supabase.table("images") \
-                    .select("*") \
-                    .in_("id", filtered_ids) \
-                    .eq("is_deleted", deleted) \
-                    .range(start, end)
-
-                result = query.execute()
+                payload = {
+                    "kw_names": keyword_list,
+                    "label_names": None,
+                    "_deleted": deleted,
+                    "_limit": limit,
+                    "_offset": start
+                }
+                result = supabase.rpc("filter_images_by_keywords_and", payload).execute()
                 return result.data
         # Caso: SOLO LABELS
-        elif labels and not keywords:
+        elif labels and not keywords: #si me pasan mas de 1 label con la nueva funcion tengo que regresar todo lo que contenga ambos
             label_list = [l.strip() for l in labels.split(",") if l.strip()]
             
             query = supabase.table("images") \
@@ -145,7 +97,6 @@ def list_images(
         elif labels and keywords:
             keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
             label_list = [l.strip() for l in labels.split(",") if l.strip()]
-            keyword_set = set(keyword_list)
 
             if keywords_mode == "or":
                 # 🔹 JOIN con keywords y labels, todo en una query
@@ -160,50 +111,14 @@ def list_images(
 
             elif keywords_mode == "and":
                 # 🔹 Obtener imágenes por labels
-                label_response = supabase.table("labels").select("id").in_("name", label_list).execute()
-                label_ids = [row["id"] for row in label_response.data]
-                if not label_ids:
-                    return []
-
-                images_from_labels = supabase.table("images") \
-                    .select("id") \
-                    .in_("id_label", label_ids) \
-                    .eq("is_deleted", deleted) \
-                    .limit(100000) \
-                    .execute()
-                image_ids_from_labels = [row["id"] for row in images_from_labels.data]
-                if not image_ids_from_labels:
-                    return []
-
-                # 🔹 JOIN con images_keywords + keywords
-                raw = supabase.table("images") \
-                    .select("id, images_keywords!inner(keywords!inner(name))") \
-                    .in_("id", image_ids_from_labels) \
-                    .in_("images_keywords.keywords.name", keyword_list) \
-                    .eq("is_deleted", deleted) \
-                    .limit(100000) \
-                    .execute()
-
-                image_keyword_map = defaultdict(set)
-                for row in raw.data:
-                    image_id = row["id"]
-                    for kw in row.get("images_keywords", []):
-                        if kw.get("keywords"):
-                            image_keyword_map[image_id].add(kw["keywords"]["name"])
-
-                image_ids_filtered = [
-                    image_id for image_id, kw_set in image_keyword_map.items()
-                    if keyword_set.issubset(kw_set)
-                ]
-                if not image_ids_filtered:
-                    return []
-
-                query = supabase.table("images") \
-                    .select("*") \
-                    .in_("id", image_ids_filtered) \
-                    .eq("is_deleted", deleted) \
-                    .range(start, end)
-                result = query.execute()
+                payload = {
+                    "kw_names": keyword_list,
+                    "label_names": label_list if labels else None,
+                    "_deleted": deleted,
+                    "_limit": limit,
+                    "_offset": start
+                }
+                result = supabase.rpc("filter_images_by_keywords_and", payload).execute()
                 return result.data
         else:
             query = supabase.table("images").select("*").eq("is_deleted", deleted).range(start, end)
@@ -215,59 +130,43 @@ def list_images(
 
 @app.post("/api/delete")
 def delete_image(payload: DeleteRequest):
-    errores = []
-    borrados = 0
-    data = []
+    try:
+        resp = supabase.rpc(
+            "set_images_deleted",
+            {"_ids": payload.ids, "_flag": True}
+        ).execute()
 
-    for id in payload.ids:    
-        try:
-            response = supabase.table("images").update({"is_deleted": True}).eq("id", id).execute()
-            if response.data:
-                borrados += 1
-            else:
-                errores.append(id)
-        except Exception as e:
-            return JSONResponse(status_code=500, content={"error": str(e)})
+        touched = {row["id"] for row in resp.data}
+        errores = list(set(payload.ids) - touched)
 
-    if errores:
         return {
-            "status": "partial_success",
-            "deleted_ids": borrados,
+            "status": "partial_success" if errores else "ok",
+            "deleted_ids": len(touched),
             "errors": errores
         }
 
-    return {
-        "status": "ok",
-        "deleted_ids": borrados
-    }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/restore")
-def restore_image(payload: DeleteRequest):
-    errores = []
-    restaurados = 0
+def delete_image(payload: DeleteRequest):
+    try:
+        resp = supabase.rpc(
+            "set_images_deleted",
+            {"_ids": payload.ids, "_flag": False}
+        ).execute()
 
-    for id in payload.ids:
-        try:
-            response = supabase.table("images").update({"is_deleted": False}).eq("id", id).execute()
-            if response.data:
-                restaurados += 1
-            else:
-                errores.append(id)
+        touched = {row["id"] for row in resp.data}
+        errores = list(set(payload.ids) - touched)
 
-        except Exception as e:
-            errores.append({"id": id, "error": str(e)})
-
-    if errores:
         return {
-            "status": "partial_success",
-            "restored_ids": restaurados,
+            "status": "partial_success" if errores else "ok",
+            "restores_ids": len(touched),
             "errors": errores
         }
 
-    return {
-        "status": "ok",
-        "restored_ids": restaurados
-    }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.get("/api/labels")
 def get_labels(
@@ -276,69 +175,20 @@ def get_labels(
     deleted: bool = Query(False),
 ):
     try:
+        # 👉 Si hay keywords → RPC
         if keywords:
-            keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
-            keyword_set = set(keyword_list)
+            kw_list = [k.strip() for k in keywords.split(",") if k.strip()]
+            payload = {
+                "mode": keywords_mode,
+                "kw_names": kw_list,
+                "_deleted": deleted,
+            }
+            resp = supabase.rpc("labels_for_keywords", payload).execute()
+            return [row["name"] for row in resp.data]
 
-            if keywords_mode == "or":
-                # 🔹 JOIN directo: buscar labels de imágenes que tengan al menos 1 keyword
-                result = supabase.table("images") \
-                    .select("id_label, images_keywords!inner(keywords!inner(name))") \
-                    .in_("images_keywords.keywords.name", keyword_list) \
-                    .eq("is_deleted", deleted) \
-                    .limit(100000) \
-                    .execute()
-
-                label_ids = {row["id_label"] for row in result.data if row.get("id_label")}
-                if not label_ids:
-                    return []
-
-                labels_response = supabase.table("labels").select("name").in_("id", list(label_ids)).execute()
-                return [row["name"] for row in labels_response.data]
-
-            elif keywords_mode == "and":
-                # 🔹 JOIN para obtener todas las combinaciones
-                raw = supabase.table("images") \
-                    .select("id, id_label, images_keywords!inner(keywords!inner(name))") \
-                    .in_("images_keywords.keywords.name", keyword_list) \
-                    .eq("is_deleted", deleted) \
-                    .limit(100000) \
-                    .execute()
-
-                # Agrupar keywords por imagen
-                image_map = {}
-                for row in raw.data:
-                    image_id = row["id"]
-                    label_id = row["id_label"]
-                    if not label_id:
-                        continue
-                    if image_id not in image_map:
-                        image_map[image_id] = {
-                            "label_id": label_id,
-                            "keywords": set()
-                        }
-                    for kw in row["images_keywords"]:
-                        if kw.get("keywords"):
-                            image_map[image_id]["keywords"].add(kw["keywords"]["name"])
-
-                # Filtrar imágenes con TODOS los keywords
-                matching_label_ids = {
-                    data["label_id"]
-                    for data in image_map.values()
-                    if keyword_set.issubset(data["keywords"])
-                }
-
-                if not matching_label_ids:
-                    return []
-
-                labels_response = supabase.table("labels").select("name").in_("id", list(matching_label_ids)).execute()
-                return [row["name"] for row in labels_response.data]
-
-        else:
-            # 🔹 Sin filtro de keywords → labels de todas las imágenes no eliminadas
-            query = supabase.table("labels").select("*")
-            result = query.execute()
-            return [row["name"] for row in result.data]
+        # 👉 Sin keywords → devolver todos los labels
+        resp = supabase.table("labels").select("name").execute()
+        return [row["name"] for row in resp.data]
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
@@ -349,32 +199,19 @@ def get_keywords(
     deleted: bool = Query(False),
 ):
     try:
+        # 👉 Si hay labels → RPC
         if labels:
             label_list = [l.strip() for l in labels.split(",") if l.strip()]
+            payload = {
+                "label_names": label_list,
+                "_deleted": deleted,
+            }
+            resp = supabase.rpc("keywords_for_labels", payload).execute()
+            return [row["name"] for row in resp.data]
 
-            # 1. JOIN desde images -> images_keywords -> keywords
-            response = supabase.table("images") \
-                .select("images_keywords!inner(keywords!inner(name))") \
-                .in_("labels.name", label_list) \
-                .eq("is_deleted", deleted) \
-                .limit(100000) \
-                .execute()
-
-            keyword_names = set()
-
-            for row in response.data:
-                for kw in row.get("images_keywords", []):
-                    keyword = kw.get("keywords", {}).get("name")
-                    if keyword:
-                        keyword_names.add(keyword)
-
-            return list(keyword_names)
-
-        else:
-            # Si no se pasaron labels, devolver todos los keywords no eliminados
-            keywords_response = supabase.table("keywords").select("name").limit(100000).execute()
-            keyword_names = list({row["name"] for row in keywords_response.data})
-            return keyword_names
+        # 👉 Sin labels → todos los keywords
+        resp = supabase.table("keywords").select("name").execute()
+        return [row["name"] for row in resp.data]
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
@@ -398,7 +235,6 @@ def get_images_count(
         # 🔹 KEYWORDS only (or/and)
         if keywords and not labels:
             keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
-            keyword_set = set(keyword_list)
 
             if keywords_mode == "or":
                 query = supabase.table("images") \
@@ -409,28 +245,13 @@ def get_images_count(
                 return {"count": result.count}
             
             elif keywords_mode == "and":
-                # 1. Traer todas las combinaciones
-                raw = supabase.table("images") \
-                    .select("id, images_keywords!inner(keywords!inner(name))") \
-                    .in_("images_keywords.keywords.name", keyword_list) \
-                    .eq("is_deleted", deleted) \
-                    .limit(100000) \
-                    .execute()
-
-                # 2. Agrupar por imagen y filtrar en Python
-                image_keyword_map = defaultdict(set)
-                for row in raw.data:
-                    image_id = row["id"]
-                    for kw in row.get("images_keywords", []):
-                        if kw.get("keywords"):
-                            image_keyword_map[image_id].add(kw["keywords"]["name"])
-
-                filtered_ids = [
-                    image_id for image_id, kws in image_keyword_map.items()
-                    if keyword_set.issubset(kws)
-                ]
-
-                return {"count": len(filtered_ids)}
+                payload = {
+                    "kw_names": keyword_list,
+                    "label_names": label_list,
+                    "_deleted": deleted
+                }
+                result = supabase.rpc("filter_images_by_keywords_and_count", payload).execute()
+                return {"count": result.data}
 
         # 🔹 LABELS only
         if labels and not keywords:
@@ -458,43 +279,13 @@ def get_images_count(
                 return {"count": result.count}
 
             elif keywords_mode == "and":
-                # 🔹 1. Obtener imágenes por label
-                label_ids_resp = supabase.table("labels").select("id").in_("name", label_list).execute()
-                label_ids = [row["id"] for row in label_ids_resp.data]
-                if not label_ids:
-                    return {"count": 0}
-
-                image_resp = supabase.table("images") \
-                    .select("id") \
-                    .in_("id_label", label_ids) \
-                    .eq("is_deleted", deleted) \
-                    .limit(100000).execute()
-
-                image_ids = [row["id"] for row in image_resp.data]
-                if not image_ids:
-                    return {"count": 0}
-
-                # 🔹 2. Hacer join por keywords sobre esas imágenes
-                raw = supabase.table("images") \
-                    .select("id, images_keywords!inner(keywords!inner(name))") \
-                    .in_("id", image_ids) \
-                    .in_("images_keywords.keywords.name", keyword_list) \
-                    .eq("is_deleted", deleted) \
-                    .limit(100000).execute()
-
-                image_keyword_map = defaultdict(set)
-                for row in raw.data:
-                    image_id = row["id"]
-                    for kw in row.get("images_keywords", []):
-                        if kw.get("keywords"):
-                            image_keyword_map[image_id].add(kw["keywords"]["name"])
-
-                filtered_ids = [
-                    image_id for image_id, kws in image_keyword_map.items()
-                    if keyword_set.issubset(kws)
-                ]
-
-                return {"count": len(filtered_ids)}
+                payload = {
+                    "kw_names": keyword_list,
+                    "label_names": label_list,
+                    "_deleted": deleted
+                }
+                result = supabase.rpc("filter_images_by_keywords_and_count", payload).execute()
+                return {"count": result.data}
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
