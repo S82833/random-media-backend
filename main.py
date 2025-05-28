@@ -247,7 +247,7 @@ def get_images_count(
             elif keywords_mode == "and":
                 payload = {
                     "kw_names": keyword_list,
-                    "label_names": label_list,
+                    "label_names": None,
                     "_deleted": deleted
                 }
                 result = supabase.rpc("filter_images_by_keywords_and_count", payload).execute()
