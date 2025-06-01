@@ -233,7 +233,8 @@ def get_images_count(
             # 🔹 Caso sin filtros: contar todo
             query = supabase.table("images") \
                 .select("id", count="exact") \
-                .eq("is_deleted", deleted)
+                .eq("is_deleted", deleted) \
+                .eq("status", "approved")
             result = query.execute()
             return {"count": result.count}
 
@@ -245,7 +246,8 @@ def get_images_count(
                 query = supabase.table("images") \
                     .select("id, images_keywords!inner(keywords!inner(name))", count="exact") \
                     .in_("images_keywords.keywords.name", keyword_list) \
-                    .eq("is_deleted", deleted)
+                    .eq("is_deleted", deleted) \
+                    .eq("status", "approved")
                 result = query.execute()
                 return {"count": result.count}
             
@@ -264,7 +266,8 @@ def get_images_count(
             query = supabase.table("images") \
                 .select("id, labels!inner(name)", count="exact") \
                 .in_("labels.name", label_list) \
-                .eq("is_deleted", deleted)
+                .eq("is_deleted", deleted) \
+                .eq("status", "approved")
             result = query.execute()
             return {"count": result.count}
 
@@ -278,7 +281,8 @@ def get_images_count(
                     .select("id, labels!inner(name), images_keywords!inner(keywords!inner(name))", count="exact") \
                     .in_("labels.name", label_list) \
                     .in_("images_keywords.keywords.name", keyword_list) \
-                    .eq("is_deleted", deleted)
+                    .eq("is_deleted", deleted) \
+                    .eq("status", "approved")
                 result = query.execute()
                 return {"count": result.count}
 
