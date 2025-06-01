@@ -301,6 +301,7 @@ def get_images_count(
 
 @app.get("/api/approve/images")
 def get_approve_images(
+    status: str = Query("pending"),
     id_label: int = Query(None),
     id_prompt: int = Query(None),
     page: int = Query(1, ge=1),
@@ -312,6 +313,7 @@ def get_approve_images(
         resp = supabase.rpc(
             "approve_images_by_prompt_label",
             {
+                "_status": status,
                 "_id_label": id_label,
                 "_id_prompt": id_prompt,
                 "_limit": limit,
@@ -337,6 +339,18 @@ def approve_images(payload: ApproveRequest):
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+@app.post("/api/preapprove/accept")
+def preapprove_images(payload: ApproveRequest):
+    try:
+        resp = supabase.rpc(
+            "set_images_status",
+            {"_ids": payload.ids, "_status": "preapproved"}
+        ).execute()
+
+        return {"updated": [row["id"] for row in resp.data]}
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/approve/reject")
 def reject_images(payload: ApproveRequest):
@@ -368,6 +382,7 @@ def get_approve_labels():
 @app.get("/api/approve/prompts")
 def get_prompts_approve(
     labels: str = Query(None),
+    status: str = Query("pending"),
 ):
     try:
         label_list = (
@@ -376,7 +391,8 @@ def get_prompts_approve(
         )
 
         payload = {
-            "label_names": label_list
+            "label_names": label_list,
+            "_status": status
         }
 
         resp = supabase.rpc("prompts_for_labels_full", payload).execute()
@@ -389,13 +405,14 @@ def get_prompts_approve(
 
 @app.get("/api/approve/images_count")
 def get_approve_images_count(
+    status: str = Query("pending"),
     id_label: int = Query(None),
     id_prompt: int = Query(None),
 ):
     try:
         resp = supabase.rpc(
             "approve_images_count_by_prompt_label",
-            {"_id_label": id_label, "_id_prompt": id_prompt}
+            {"_id_label": id_label, "_id_prompt": id_prompt, "_status": status}
         ).execute()
 
         return {"count": resp.data}
