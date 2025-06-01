@@ -318,28 +318,37 @@ def get_approve_images(
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+@app.get("/api/approve/labels")
+def get_approve_labels():
+    try:
+        resp = supabase.table("labels") \
+            .select("id, name") \
+            .eq("deleted", False) \
+            .execute()
+
+        return [{"id": row["id"], "name": row["name"]} for row in resp.data]
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+    
 
 @app.get("/api/approve/prompts")
 def get_prompts_approve(
     labels: str = Query(None),
 ):
     try:
-        if labels:
-            label_list = [l.strip() for l in labels.split(",") if l.strip()]
-            payload = {
-                "label_names": label_list
-            }
-            resp = supabase.rpc("prompts_for_labels", payload).execute()
-            return [row["content"] for row in resp.data]
+        label_list = (
+            [l.strip() for l in labels.split(",") if l.strip()]
+            if labels else None
+        )
 
-        # 🔁 Si no hay labels, obtener todos los prompts de imágenes con status = 'pending'
-        resp = supabase.table("images") \
-            .select("prompts(content)") \
-            .eq("status", "pending") \
-            .execute()
+        payload = {
+            "label_names": label_list
+        }
 
-        prompts_set = {row["prompts"]["content"] for row in resp.data if row.get("prompts")}
-        return list(prompts_set)
+        resp = supabase.rpc("prompts_for_labels_full", payload).execute()
+
+        return [{"id": row["id"], "content": row["content"]} for row in resp.data]
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
