@@ -67,6 +67,7 @@ def list_images(
                     .select("*, images_keywords!inner(keywords!inner(name))") \
                     .in_("images_keywords.keywords.name", keyword_list) \
                     .eq("is_deleted", deleted) \
+                    .eq("status", "approved") \
                     .range(start, end)
                 result = query.execute()
                 return result.data
@@ -89,6 +90,7 @@ def list_images(
             .select("*, labels!inner(name)") \
             .in_("labels.name", label_list) \
             .eq("is_deleted", deleted) \
+            .eq("status", "approved") \
             .range(start, end)
 
             result = query.execute()
@@ -105,6 +107,7 @@ def list_images(
                     .in_("images_keywords.keywords.name", keyword_list) \
                     .in_("labels.name", label_list) \
                     .eq("is_deleted", deleted) \
+                    .eq("status", "approved") \
                     .range(start, end)
                 result = query.execute()
                 return result.data
@@ -121,7 +124,7 @@ def list_images(
                 result = supabase.rpc("filter_images_by_keywords_and", payload).execute()
                 return result.data
         else:
-            query = supabase.table("images").select("*").eq("is_deleted", deleted).range(start, end)
+            query = supabase.table("images").select("*").eq("is_deleted", deleted).eq("status", "approved").range(start, end)
             result = query.execute()
             return result.data
         
@@ -175,7 +178,7 @@ def get_labels(
     deleted: bool = Query(False),
 ):
     try:
-        # 👉 Si hay keywords → RPC
+        # Si hay keywords → RPC
         if keywords:
             kw_list = [k.strip() for k in keywords.split(",") if k.strip()]
             payload = {
@@ -186,7 +189,7 @@ def get_labels(
             resp = supabase.rpc("labels_for_keywords", payload).execute()
             return [row["name"] for row in resp.data]
 
-        # 👉 Sin keywords → devolver todos los labels
+        # Sin keywords → devolver todos los labels
         resp = supabase.table("labels").select("name").execute()
         return [row["name"] for row in resp.data]
 
@@ -267,7 +270,6 @@ def get_images_count(
         if labels and keywords:
             label_list = [l.strip() for l in labels.split(",") if l.strip()]
             keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
-            keyword_set = set(keyword_list)
 
             if keywords_mode == "or":
                 query = supabase.table("images") \
@@ -289,3 +291,73 @@ def get_images_count(
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+    
+
+@app.get("/api/approve/images")
+def get_approve_images(
+    id_label: int = Query(None),
+    id_prompt: int = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(100, ge=1, le=500),
+):
+    try:
+        offset = (page - 1) * limit
+
+        resp = supabase.rpc(
+            "approve_images_by_prompt_label",
+            {
+                "_id_label": id_label,
+                "_id_prompt": id_prompt,
+                "_limit": limit,
+                "_offset": offset
+            }
+        ).execute()
+
+        return resp.data
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/approve/prompts")
+def get_prompts_approve(
+    labels: str = Query(None),
+):
+    try:
+        if labels:
+            label_list = [l.strip() for l in labels.split(",") if l.strip()]
+            payload = {
+                "label_names": label_list
+            }
+            resp = supabase.rpc("prompts_for_labels", payload).execute()
+            return [row["content"] for row in resp.data]
+
+        # 🔁 Si no hay labels, obtener todos los prompts de imágenes con status = 'pending'
+        resp = supabase.table("images") \
+            .select("prompts(content)") \
+            .eq("status", "pending") \
+            .execute()
+
+        prompts_set = {row["prompts"]["content"] for row in resp.data if row.get("prompts")}
+        return list(prompts_set)
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/approve/images_count")
+def get_approve_images_count(
+    id_label: int = Query(None),
+    id_prompt: int = Query(None),
+):
+    try:
+        resp = supabase.rpc(
+            "approve_images_count_by_prompt_label",
+            {"_id_label": id_label, "_id_prompt": id_prompt}
+        ).execute()
+
+        return {"count": resp.data}
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
