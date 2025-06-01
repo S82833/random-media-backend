@@ -420,3 +420,51 @@ def get_approve_images_count(
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+@app.get("/api/assign_keywords/images")
+def get_images_without_keywords(
+    status: str = Query("approved"),
+    id_label: int = Query(None),
+    id_prompt: int = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(100, ge=1, le=500),
+):
+    try:
+        offset = (page - 1) * limit
+
+        resp = supabase.rpc(
+            "approved_images_without_keywords",
+            {
+                "_status": status,
+                "_id_label": id_label,
+                "_id_prompt": id_prompt,
+                "_limit": limit,
+                "_offset": offset
+            }
+        ).execute()
+
+        return resp.data
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+    
+@app.get("/api/assign_keywords/images_count")
+def get_images_without_keywords_count(
+    status: str = Query("approved"),
+    id_label: int = Query(None),
+    id_prompt: int = Query(None),
+):
+    try:
+        resp = supabase.rpc(
+            "count_images_without_keywords",
+            {
+                "_status": status,
+                "_id_label": id_label,
+                "_id_prompt": id_prompt
+            }
+        ).execute()
+
+        return {"count": resp.data}
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
