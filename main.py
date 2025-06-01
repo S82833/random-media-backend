@@ -9,7 +9,6 @@ from models.approve_request import ApproveRequest
 from models.add_keywords_request import AddKeywordsRequest
 import traceback
 from collections import defaultdict
-import traceback
 
 load_dotenv()
 
@@ -472,15 +471,25 @@ def get_images_without_keywords_count(
 @app.post("/api/assign_keywords/add")
 def assign_keywords_to_image(payload: AddKeywordsRequest):
     try:
+        print("\n✅ Payload recibido:")
+        print(payload.dict())
+
         # 1. Parsear keywords
         keywords = [kw.strip().lower() for kw in payload.keywords.split(",") if kw.strip()]
 
+
+        if not keywords or not payload.ids:
+            print("❌ Error: keywords o ids vacíos")
+            raise HTTPException(status_code=400, detail="Se requieren imágenes y keywords válidas.")
+        
          # 2. Llamar a la función Supabase
         response = supabase.rpc("upsert_keywords_and_return_ids", {
             "keyword_names": keywords
         }).execute()
 
-        keyword_ids = [kw["id"] for kw in response.data]
+
+        keyword_ids = [kw["keyword_id"] for kw in response.data]
+
 
         # 3. Insertar todas las combinaciones en images_keywords
         insert_resp = supabase.rpc("assign_keywords_to_images", {
@@ -488,7 +497,9 @@ def assign_keywords_to_image(payload: AddKeywordsRequest):
             "keyword_ids": keyword_ids
         }).execute()
 
+
         return {"message": "Keywords asignadas correctamente."}
     
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
