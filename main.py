@@ -47,89 +47,26 @@ async def get_random_image(label: str):
 def list_images(
     page: int = Query(1, ge=1),
     limit: int = Query(100, ge=1, le=500),
-    labels: str = Query(None), # es una lista separada por comas
-    keywords: str = Query(None),  # e.g. "romance,drama"
+    labels: str = Query(None),        # Ejemplo: "fantasy,scifi"
+    keywords: str = Query(None),      # Ejemplo: "romance,drama"
     deleted: bool = Query(False),
-    keywords_mode: str = Query(None)
+    keywords_mode: str = Query("or")  # Puede ser "or" o "and"
 ):
     start = (page - 1) * limit
-    end = start + limit - 1
 
     try:
-        query = None
+        payload = {
+            "kw_names": [k.strip() for k in keywords.split(",")] if keywords else None,
+            "label_names": [l.strip() for l in labels.split(",")] if labels else None,
+            "kw_mode": keywords_mode,
+            "_deleted": deleted,
+            "_limit": limit,
+            "_offset": start
+        }
 
-        # Caso: SOLO KEYWORDS
-        
-        if keywords:
-            keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
+        result = supabase.rpc("filter_images_general", payload).execute()
+        return result.data
 
-            if keywords_mode == "or":
-                # 🔹 1 sola query con paginación
-                query = supabase.table("images") \
-                    .select("*, images_keywords!inner(keywords!inner(name))") \
-                    .in_("images_keywords.keywords.name", keyword_list) \
-                    .eq("is_deleted", deleted) \
-                    .eq("status", "approved") \
-                    .range(start, end)
-                result = query.execute()
-                return result.data
-
-            elif keywords_mode == "and":
-                payload = {
-                    "kw_names": keyword_list,
-                    "label_names": None,
-                    "_deleted": deleted,
-                    "_limit": limit,
-                    "_offset": start
-                }
-                result = supabase.rpc("filter_images_by_keywords_and", payload).execute()
-                return result.data
-        # Caso: SOLO LABELS
-        elif labels and not keywords: #si me pasan mas de 1 label con la nueva funcion tengo que regresar todo lo que contenga ambos
-            label_list = [l.strip() for l in labels.split(",") if l.strip()]
-            
-            query = supabase.table("images") \
-            .select("*, labels!inner(name)") \
-            .in_("labels.name", label_list) \
-            .eq("is_deleted", deleted) \
-            .eq("status", "approved") \
-            .range(start, end)
-
-            result = query.execute()
-            return result.data
-        
-        elif labels and keywords:
-            keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
-            label_list = [l.strip() for l in labels.split(",") if l.strip()]
-
-            if keywords_mode == "or":
-                # 🔹 JOIN con keywords y labels, todo en una query
-                query = supabase.table("images") \
-                    .select("*, images_keywords!inner(keywords!inner(name)), labels!inner(name)") \
-                    .in_("images_keywords.keywords.name", keyword_list) \
-                    .in_("labels.name", label_list) \
-                    .eq("is_deleted", deleted) \
-                    .eq("status", "approved") \
-                    .range(start, end)
-                result = query.execute()
-                return result.data
-
-            elif keywords_mode == "and":
-                # 🔹 Obtener imágenes por labels
-                payload = {
-                    "kw_names": keyword_list,
-                    "label_names": label_list if labels else None,
-                    "_deleted": deleted,
-                    "_limit": limit,
-                    "_offset": start
-                }
-                result = supabase.rpc("filter_images_by_keywords_and", payload).execute()
-                return result.data
-        else:
-            query = supabase.table("images").select("*").eq("is_deleted", deleted).eq("status", "approved").range(start, end)
-            result = query.execute()
-            return result.data
-        
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
