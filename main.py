@@ -8,6 +8,7 @@ from models.delete_request import DeleteRequest
 from models.approve_request import ApproveRequest
 import traceback
 from collections import defaultdict
+import traceback
 
 load_dotenv()
 
@@ -321,20 +322,30 @@ def get_approve_images(
     
 @app.post("/api/approve/accept")
 def approve_images(payload: ApproveRequest):
-    resp = supabase.rpc(
-        "set_images_status",
-        {"_ids": payload.ids, "_status": "approved"}
-    ).execute()
-    return {"updated": [row["id"] for row in resp.data]}
+    try:
+        resp = supabase.rpc(
+            "set_images_status",
+            {"_ids": payload.ids, "_status": "approved"}
+        ).execute()
+
+        return {"updated": [row["id"] for row in resp.data]}
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @app.post("/api/approve/reject")
 def reject_images(payload: ApproveRequest):
-    resp = supabase.rpc(
-        "set_images_status",
-        {"_ids": payload.ids, "_status": "rejected"}
-    ).execute()
-    return {"updated": [row["id"] for row in resp.data]}
+    try:
+        resp = supabase.rpc(
+            "set_images_status",
+            {"_ids": payload.ids, "_status": "rejected"}
+        ).execute()
+
+        return {"updated": [row["id"] for row in resp.data]}
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @app.get("/api/approve/labels")
