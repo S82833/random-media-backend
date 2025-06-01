@@ -323,7 +323,6 @@ def get_approve_labels():
     try:
         resp = supabase.table("labels") \
             .select("id, name") \
-            .eq("deleted", False) \
             .execute()
 
         return [{"id": row["id"], "name": row["name"]} for row in resp.data]
