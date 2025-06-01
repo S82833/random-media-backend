@@ -6,6 +6,7 @@ import os, random
 from dotenv import load_dotenv
 from models.delete_request import DeleteRequest
 from models.approve_request import ApproveRequest
+from models.add_keywords_request import AddKeywordsRequest
 import traceback
 from collections import defaultdict
 import traceback
@@ -468,3 +469,26 @@ def get_images_without_keywords_count(
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+@app.post("/api/assign_keywords/add")
+def assign_keywords_to_image(payload: AddKeywordsRequest):
+    try:
+        # 1. Parsear keywords
+        keywords = [kw.strip().lower() for kw in payload.keywords.split(",") if kw.strip()]
+
+         # 2. Llamar a la función Supabase
+        response = supabase.rpc("upsert_keywords_and_return_ids", {
+            "keyword_names": keywords
+        }).execute()
+
+        keyword_ids = [kw["id"] for kw in response.data]
+
+        # 3. Insertar todas las combinaciones en images_keywords
+        insert_resp = supabase.rpc("assign_keywords_to_images", {
+            "image_ids": payload.ids,
+            "keyword_ids": keyword_ids
+        }).execute()
+
+        return {"message": "Keywords asignadas correctamente."}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
