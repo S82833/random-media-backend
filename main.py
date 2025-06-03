@@ -268,7 +268,11 @@ def approve_images(payload: ApproveRequest):
     try:
         resp = supabase.rpc(
             "set_images_status",
-            {"_ids": payload.ids, "_status": "approved"}
+            {
+                "_ids": payload.ids,
+                "_status": "approved",
+                "_ids_with_shade": payload.ids_with_shade
+            }
         ).execute()
 
         return {"updated": [row["id"] for row in resp.data]}
