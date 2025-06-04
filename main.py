@@ -38,7 +38,7 @@ async def get_random_image(label: str):
         if resp.data is None:
             raise HTTPException(status_code=404, detail="Label or images not found")
 
-        return RedirectResponse(url=f"{resp.data}?download=1")
+        return RedirectResponse(url=f"{resp.data}")
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
