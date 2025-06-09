@@ -457,3 +457,63 @@ def assign_keywords_to_image(payload: AddKeywordsRequest):
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+    
+
+# ============Metrics============
+
+@app.get("/api/images/metrics/generated")
+def get_metrics_generated(status: str = Query(None)):
+    try:
+        payload = {
+            "_status": status
+        }
+        reponse = supabase.rpc("get_metrics", payload)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/images/metrics/preapproved")
+def get_metrics_preapproved(status: str = Query(None)):
+    try:
+        payload = {
+            "_status": status
+        }
+        reponse = supabase.rpc("get_metrics", payload)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/images/metrics/prerejected")
+def get_metrics_prerejected(status: str = Query(None)):
+    try:
+        payload = {
+            "_status": status
+        }
+        reponse = supabase.rpc("get_metrics", payload)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/images/metrics/approved")
+def get_metrics_approved(status: str = Query(None)):
+    try:
+        payload = {
+            "_status": status
+        }
+        reponse = supabase.rpc("get_metrics", payload)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/images/metrics/rejected")
+def get_metrics_rejected(status: str = Query(None)):
+    try:
+        payload = {
+            "_status": status
+        }
+        reponse = supabase.rpc("get_metrics", payload)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
