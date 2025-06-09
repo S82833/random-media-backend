@@ -305,6 +305,19 @@ def reject_images(payload: ApproveRequest):
     except Exception as e:
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
+    
+@app.post("/api/preapprove/reject")
+def reject_images(payload: ApproveRequest):
+    try:
+        resp = supabase.rpc(
+            "set_images_status",
+            {"_ids": payload.ids, "_status": "prerejected"}
+        ).execute()
+
+        return {"updated": [row["id"] for row in resp.data]}
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 @app.get("/api/approve/labels")
