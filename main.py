@@ -462,10 +462,14 @@ def assign_keywords_to_image(payload: AddKeywordsRequest):
 # ============Metrics============
 
 @app.get("/api/images/metrics")
-def get_metrics_generated(status: str = Query(None)):
+def get_metrics_generated(
+    status: str = Query(None),
+    label: str = Query(None)
+    ):
     try:
         payload = {
-            "_status": status
+            "_status": status,
+            "_label": label
         }
         response = supabase.rpc("get_metrics", payload).execute()
         return response.data
