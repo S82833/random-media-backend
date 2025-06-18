@@ -46,7 +46,7 @@ async def get_random_image(label: str):
 @app.get("/api/images")
 def list_images(
     page: int = Query(1, ge=1),
-    limit: int = Query(100, ge=1, le=500),
+    limit: int = Query(100, ge=1, le=1000),
     labels: str = Query(None),        # Ejemplo: "fantasy,scifi"
     keywords: str = Query(None),      # Ejemplo: "romance,drama"
     deleted: bool = Query(False),
