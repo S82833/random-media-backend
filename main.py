@@ -43,6 +43,7 @@ async def get_random_image(label: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/api/images")
 def list_images(
     page: int = Query(1, ge=1),
@@ -64,12 +65,12 @@ def list_images(
             "_offset": start
         }
 
-        result = supabase.rpc("filter_images_general", payload).execute()
+        result = supabase.rpc("get_filtered_images", payload).execute()
         return result.data
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
-
+    
 @app.post("/api/delete")
 def delete_image(payload: DeleteRequest):
     try:
