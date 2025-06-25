@@ -320,18 +320,29 @@ def reject_images(payload: ApproveRequest):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
-@app.get("/api/approve/labels")
-def get_approve_labels():
+@app.get("/api/status/labels")
+def get_approve_labels(
+    status: str = Query("")
+):
     try:
-        resp = supabase.table("labels") \
-            .select("id, name") \
-            .execute()
-
+        payload = {
+            "_status": status
+        }
+        
+        resp = supabase.rpc("get_labels_by_status", payload).execute()
         return [{"id": row["id"], "name": row["name"]} for row in resp.data]
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
-    
+
+@app.get("/api/status/labels_keywords")
+def get_approve_labels():
+    try:        
+        resp = supabase.rpc("get_labels_by_status_keywords", {}).execute()
+        return [{"id": row["id"], "name": row["name"]} for row in resp.data]
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.get("/api/approve/prompts")
 def get_prompts_approve(
