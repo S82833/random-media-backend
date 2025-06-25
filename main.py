@@ -319,7 +319,18 @@ def reject_images(payload: ApproveRequest):
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+@app.get("/api/approve/labels")
+def get_approve_labels():
+    try:
+        resp = supabase.table("labels") \
+            .select("id, name") \
+            .execute()
 
+        return [{"id": row["id"], "name": row["name"]} for row in resp.data]
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+    
 @app.get("/api/status/labels")
 def get_approve_labels(
     status: str = Query("")
