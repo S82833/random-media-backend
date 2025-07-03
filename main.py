@@ -9,6 +9,8 @@ from models.approve_request import ApproveRequest
 from models.add_keywords_request import AddKeywordsRequest
 import traceback
 from collections import defaultdict
+from typing import Optional
+from datetime import datetime
 
 load_dotenv()
 
@@ -43,18 +45,18 @@ async def get_random_image(label: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+    
 @app.get("/api/images")
 def list_images(
-    page: int = Query(1, ge=1),
     limit: int = Query(100, ge=1, le=1000),
-    labels: str = Query(None),        # Ejemplo: "fantasy,scifi"
-    keywords: str = Query(None),      # Ejemplo: "romance,drama"
+    labels: Optional[str] = Query(None),
+    keywords: Optional[str] = Query(None),
     deleted: bool = Query(False),
-    keywords_mode: str = Query("or")  # Puede ser "or" o "and"
+    keywords_mode: str = Query("or"),
+    after: Optional[datetime] = Query(None),
+    sort_by: str = Query(None),
+    sort_direction: str = Query(None)
 ):
-    start = (page - 1) * limit
-
     try:
         payload = {
             "kw_names": [k.strip() for k in keywords.split(",")] if keywords else None,
@@ -62,10 +64,12 @@ def list_images(
             "kw_mode": keywords_mode,
             "_deleted": deleted,
             "_limit": limit,
-            "_offset": start
+            "_after": after.isoformat() if after else None,
+            "_sort_by": sort_by,
+            "_sort_direction": sort_direction
         }
 
-        result = supabase.rpc("get_filtered_images", payload).execute()
+        result = supabase.rpc("get_filtered_images_cursor_sort", payload).execute()
         return result.data
 
     except Exception as e:
@@ -142,7 +146,6 @@ def get_keywords(
     deleted: bool = Query(False),
 ):
     try:
-        # 👉 Si hay labels → RPC
         if labels:
             label_list = [l.strip() for l in labels.split(",") if l.strip()]
             payload = {
@@ -151,91 +154,36 @@ def get_keywords(
             }
             resp = supabase.rpc("keywords_for_labels", payload).execute()
             return [row["name"] for row in resp.data]
-
-        # 👉 Sin labels → todos los keywords
+        
         resp = supabase.table("keywords").select("name").execute()
         return [row["name"] for row in resp.data]
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-@app.get("/api/images_count")
-def get_images_count(
-    labels: str = Query(None),
-    keywords: str = Query(None),
-    keywords_mode: str = Query("or"),
+
+@app.get("/api/image_count")
+def count_images(
+    labels: Optional[str] = Query(None),
+    keywords: Optional[str] = Query(None),
     deleted: bool = Query(False),
+    keywords_mode: str = Query("or"),
 ):
     try:
-        if not labels and not keywords:
-            # 🔹 Caso sin filtros: contar todo
-            query = supabase.table("images") \
-                .select("id", count="exact") \
-                .eq("is_deleted", deleted) \
-                .eq("status", "approved")
-            result = query.execute()
-            return {"count": result.count}
+        payload = {
+            "kw_names": [k.strip() for k in keywords.split(",")] if keywords else None,
+            "label_names": [l.strip() for l in labels.split(",")] if labels else None,
+            "kw_mode": keywords_mode,
+            "_deleted": deleted,
+        }
 
-        # 🔹 KEYWORDS only (or/and)
-        if keywords and not labels:
-            keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
-
-            if keywords_mode == "or":
-                query = supabase.table("images") \
-                    .select("id, images_keywords!inner(keywords!inner(name))", count="exact") \
-                    .in_("images_keywords.keywords.name", keyword_list) \
-                    .eq("is_deleted", deleted) \
-                    .eq("status", "approved")
-                result = query.execute()
-                return {"count": result.count}
-            
-            elif keywords_mode == "and":
-                payload = {
-                    "kw_names": keyword_list,
-                    "label_names": None,
-                    "_deleted": deleted
-                }
-                result = supabase.rpc("filter_images_by_keywords_and_count", payload).execute()
-                return {"count": result.data}
-
-        # 🔹 LABELS only
-        if labels and not keywords:
-            label_list = [l.strip() for l in labels.split(",") if l.strip()]
-            query = supabase.table("images") \
-                .select("id, labels!inner(name)", count="exact") \
-                .in_("labels.name", label_list) \
-                .eq("is_deleted", deleted) \
-                .eq("status", "approved")
-            result = query.execute()
-            return {"count": result.count}
-
-        # 🔹 BOTH: labels + keywords
-        if labels and keywords:
-            label_list = [l.strip() for l in labels.split(",") if l.strip()]
-            keyword_list = [k.strip() for k in keywords.split(",") if k.strip()]
-
-            if keywords_mode == "or":
-                query = supabase.table("images") \
-                    .select("id, labels!inner(name), images_keywords!inner(keywords!inner(name))", count="exact") \
-                    .in_("labels.name", label_list) \
-                    .in_("images_keywords.keywords.name", keyword_list) \
-                    .eq("is_deleted", deleted) \
-                    .eq("status", "approved")
-                result = query.execute()
-                return {"count": result.count}
-
-            elif keywords_mode == "and":
-                payload = {
-                    "kw_names": keyword_list,
-                    "label_names": label_list,
-                    "_deleted": deleted
-                }
-                result = supabase.rpc("filter_images_by_keywords_and_count", payload).execute()
-                return {"count": result.data}
+        result = supabase.rpc("get_filtered_images_count", payload).execute()
+        return {"count": result.data}
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
-    
+
+
 
 @app.get("/api/approve/images")
 def get_approve_images(
