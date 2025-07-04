@@ -184,6 +184,25 @@ def count_images(
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+@app.get("/api/assignees")
+def get_assignees():
+    try:
+        resp = supabase.rpc("get_assignees", {}).execute()
+        return resp.data
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/book_summary")
+def get_book_summary(
+    assignee: str = Query(None),
+):
+    try:
+        resp = supabase.rpc("get_labels_summary", {
+            "_assignee": assignee
+        }).execute()
+        return resp.data
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.get("/api/approve/images")
 def get_approve_images(
