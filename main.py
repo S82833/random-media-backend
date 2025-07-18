@@ -74,7 +74,24 @@ def list_images(
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
-    
+
+@app.get("/api/images/batch")
+def get_images_batch_by_label(
+    label: str = Query(...),
+    count: int = Query(10, ge=1)
+):
+    try:
+        payload = {
+            "_label_name": label,
+            "_count": count
+        }
+        response = supabase.rpc("get_images_batch_by_label_no_update", payload).execute()
+        return response.data
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
 @app.post("/api/delete")
 def delete_image(payload: DeleteRequest):
     try:
@@ -466,3 +483,4 @@ def get_metrics_generated(
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
