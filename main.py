@@ -233,7 +233,7 @@ def get_approve_images(
         offset = (page - 1) * limit
 
         resp = supabase.rpc(
-            "approve_images_by_prompt_label",
+            "approve_images_by_prompt_label_with_keywords", #cambiar esto si falla a approve_images_by_prompt_label 06/agosto/2025
             {
                 "_status": status,
                 "_id_label": id_label,
