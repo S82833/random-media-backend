@@ -232,8 +232,13 @@ def get_approve_images(
     try:
         offset = (page - 1) * limit
 
+        if status == "pending":
+            rpc_function = "approve_images_by_prompt_label"
+        else:
+            rpc_function = "approve_images_by_prompt_label_with_keywords"
+
         resp = supabase.rpc(
-            "approve_images_by_prompt_label_with_keywords", #cambiar esto si falla a approve_images_by_prompt_label 06/agosto/2025
+            rpc_function, #cambiar esto si falla a approve_images_by_prompt_label 06/agosto/2025
             {
                 "_status": status,
                 "_id_label": id_label,
