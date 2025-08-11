@@ -376,8 +376,13 @@ def get_approve_images_count(
     id_prompt: int = Query(None),
 ):
     try:
+        if status == "pending":
+            rpc_function = "approve_images_count_by_prompt_label"
+        else:
+            rpc_function = "approve_images_count_by_prompt_label_keyword"
+
         resp = supabase.rpc(
-            "approve_images_count_by_prompt_label_keyword",
+            rpc_function,
             {"_id_label": id_label, "_id_prompt": id_prompt, "_status": status}
         ).execute()
 
