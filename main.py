@@ -329,8 +329,13 @@ def get_approve_labels(
         payload = {
             "_status": status
         }
+
+        if status == "pending":
+            rpc_function = "get_labels_by_status"
+        else:
+            rpc_function = "get_labels_by_status_with_keywords"
         
-        resp = supabase.rpc("get_labels_by_status_with_keywords", payload).execute()
+        resp = supabase.rpc(rpc_function, payload).execute()
         return [{"id": row["id"], "name": row["name"]} for row in resp.data]
 
     except Exception as e:
