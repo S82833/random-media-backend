@@ -377,7 +377,7 @@ def get_approve_images_count(
 ):
     try:
         resp = supabase.rpc(
-            "approve_images_count_by_prompt_label",
+            "approve_images_count_by_prompt_label_keyword",
             {"_id_label": id_label, "_id_prompt": id_prompt, "_status": status}
         ).execute()
 
