@@ -330,7 +330,7 @@ def get_approve_labels(
             "_status": status
         }
         
-        resp = supabase.rpc("get_labels_by_status", payload).execute()
+        resp = supabase.rpc("get_labels_by_status_with_keywords", payload).execute()
         return [{"id": row["id"], "name": row["name"]} for row in resp.data]
 
     except Exception as e:
