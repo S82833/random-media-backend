@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from models.delete_request import DeleteRequest
 from models.approve_request import ApproveRequest
 from models.add_keywords_request import AddKeywordsRequest
+from models.update_assignee_request import UpdateAssigneeRequest
 import traceback
 from collections import defaultdict
 from typing import Optional
@@ -220,6 +221,19 @@ def get_book_summary(
         return resp.data
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+    
+@app.post("/api/book_summary/update_assignee")
+def update_assignee(payload: UpdateAssigneeRequest):
+    try:
+        resp = supabase.table("labels") \
+            .update({"assignee": payload.assignee}) \
+            .eq("id", payload.id) \
+            .execute()
+        return {"status": "ok", "updated_id": resp.data[0]["id"]}
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 
 @app.get("/api/approve/images")
 def get_approve_images(
