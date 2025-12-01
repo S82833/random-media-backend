@@ -289,9 +289,13 @@ def preapprove_images(payload: ApproveRequest):
     try:
         resp = supabase.rpc(
             "set_images_status",
-            {"_ids": payload.ids, "_status": "preapproved"}
+            {
+                "_ids": payload.ids,
+                "_status": "preapproved",
+                "_ids_with_shade": payload.ids_with_shade,
+                "_user_email": payload.user_email
+            }
         ).execute()
-
         return {"updated": [row["id"] for row in resp.data]}
     except Exception as e:
         traceback.print_exc()
@@ -302,7 +306,11 @@ def reject_images(payload: ApproveRequest):
     try:
         resp = supabase.rpc(
             "set_images_status",
-            {"_ids": payload.ids, "_status": "rejected"}
+            {
+                "_ids": payload.ids, 
+                "_status": "rejected",
+                "_ids_with_shade": payload.ids_with_shade,
+            }
         ).execute()
 
         return {"updated": [row["id"] for row in resp.data]}
@@ -315,7 +323,12 @@ def reject_images(payload: ApproveRequest):
     try:
         resp = supabase.rpc(
             "set_images_status",
-            {"_ids": payload.ids, "_status": "prerejected"}
+            {
+                "_ids": payload.ids, 
+                "_status": "prerejected",
+                "_ids_with_shade": payload.ids_with_shade, 
+                "_user_email": payload.user_email
+            }
         ).execute()
 
         return {"updated": [row["id"] for row in resp.data]}
