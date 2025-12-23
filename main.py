@@ -271,11 +271,12 @@ def get_approve_images(
 def approve_images(payload: ApproveRequest):
     try:
         resp = supabase.rpc(
-            "set_images_status",
+            "set_approved_images_status",
             {
                 "_ids": payload.ids,
                 "_status": "approved",
-                "_ids_with_shade": payload.ids_with_shade
+                "_ids_with_shade": payload.ids_with_shade,
+                "_user_email": payload.user_email
             }
         ).execute()
 
@@ -305,11 +306,12 @@ def preapprove_images(payload: ApproveRequest):
 def reject_images(payload: ApproveRequest):
     try:
         resp = supabase.rpc(
-            "set_images_status",
+            "set_approved_images_status",
             {
                 "_ids": payload.ids, 
                 "_status": "rejected",
                 "_ids_with_shade": payload.ids_with_shade,
+                "_user_email": payload.user_email
             }
         ).execute()
 
