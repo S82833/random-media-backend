@@ -1,3 +1,4 @@
+from models.update_deliverables_request import UpdateDeliverablesRequest
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -215,7 +216,7 @@ def get_book_summary(
     assignee: str = Query(None),
 ):
     try:
-        resp = supabase.rpc("get_labels_summary", {
+        resp = supabase.rpc("get_book_summary", {
             "_assignee": assignee
         }).execute()
         return resp.data
@@ -227,6 +228,18 @@ def update_assignee(payload: UpdateAssigneeRequest):
     try:
         resp = supabase.table("labels") \
             .update({"assignee": payload.assignee}) \
+            .eq("id", payload.id) \
+            .execute()
+        return {"status": "ok", "updated_id": resp.data[0]["id"]}
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/book_summary/update_deliverables")
+def update_deliverables(payload: UpdateDeliverablesRequest):
+    try:
+        resp = supabase.table("labels") \
+            .update({"deliverables": payload.deliverables}) \
             .eq("id", payload.id) \
             .execute()
         return {"status": "ok", "updated_id": resp.data[0]["id"]}
