@@ -550,3 +550,20 @@ def get_moderation_stats():
     except Exception as e:
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/images/failed")
+def get_failed_images(
+    user_email: str = Query(None)
+):
+    try:
+        payload = {
+            "_user_email": user_email
+        }
+
+        response = supabase.rpc("get_failed_images_by_user", payload).execute()
+
+        return response.data
+
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
