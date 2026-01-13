@@ -541,3 +541,12 @@ def get_metrics_generated(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/api/moderation_stats")
+def get_moderation_stats():
+    try:
+        resp = supabase.rpc("get_image_moderation_stats", {}).execute()
+        return resp.data
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": str(e)})
